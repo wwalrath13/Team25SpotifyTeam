@@ -1,0 +1,23 @@
+---
+title: "02 Clean and Transform"
+output:
+  html_document:
+    toc: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Read the raw data
+
+Read from `../data/raw/`.
+
+## Clean each source
+
+Types, formats, missing values, duplicates.
+
+## Save the cleaned data
+
+Write to `../data/processed/`.

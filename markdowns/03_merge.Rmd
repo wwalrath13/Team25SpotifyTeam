@@ -1,0 +1,25 @@
+---
+title: "03 Merge"
+output:
+  html_document:
+    toc: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Keys
+
+Which columns link the sources, and how you made them match.
+
+## Join
+
+## Check the join
+
+Rows before and after each join, and the rows that did not match.
+
+## Save the final dataset
+
+Write to `../data/processed/`.

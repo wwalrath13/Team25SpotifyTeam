@@ -1,0 +1,14 @@
+# Keys and secrets: never commit these
+.Renviron
+
+# R and RStudio
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Knitted output and OS files
+*_cache/
+*_files/
+.DS_Store
+Thumbs.db

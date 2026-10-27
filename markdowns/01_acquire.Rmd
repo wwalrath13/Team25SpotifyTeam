@@ -1,0 +1,27 @@
+---
+title: "01 Acquire"
+output:
+  html_document:
+    toc: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Source 1: [name] ([web scraping / API / LLM extraction])
+
+What one row is: [ ]
+
+## Source 2: [name]
+
+What one row is: [ ]
+
+## Source 3: [name]
+
+What one row is: [ ]
+
+## Save the raw data
+
+Write each source to `../data/raw/`.

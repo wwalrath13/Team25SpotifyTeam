@@ -1,0 +1,21 @@
+---
+title: "04 Validate and Summarize"
+output:
+  html_document:
+    toc: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Validation rules
+
+## Validation table
+
+The rows that break each rule.
+
+## Descriptive summaries
+
+Summary statistics, data quality checks, and exploratory charts.
