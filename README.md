@@ -1,21 +1,10 @@
-# [Project Title]
+# Are Older Songs Popular Today?
 
-ISA 401 Final Project, Fall 2026, Team [number], Section [A or B]
+ISA 401 Final Project, Fall 2026, Team 25, Section A
 
-<!--
-How to use this template (delete this comment block once your team is set up):
+## Project Overview 
 
-1. One teammate clicks "Use this template" > "Create a new repository" on GitHub.
-   Owner: that teammate. Name: something descriptive (for example, ohio-housing-affordability).
-   Visibility: Public.
-2. That teammate opens Settings > Collaborators and adds every other team member.
-3. Every team member clones the new repository in GitHub Desktop (File > Clone repository)
-   to M:\isa401\ and opens project.Rproj in RStudio.
-4. Replace every [bracketed] placeholder below. Keep the headings: they follow the
-   Project page on Canvas, and this README is the index of your final submission.
-
-Never commit API keys. Keep them in a .Renviron file in this folder (already in .gitignore).
--->
+Our team plans to investigate whether older songs remain popular in today's music streaming environment. Using Spotify Charts, MusicBrainz, and Last.fm, we aim to compare the popularity of songs released in different decades and explore whether older music continues to compete with newer releases. We plan to collect current music rankings, historical release information, and listening statistics to examine patterns across artists, genres, and countries. By combining these sources, we hope to create visualizations that show how song age relates to present-day popularity and identify older songs that continue to attract listeners.
 
 ## Submission
 
@@ -29,9 +18,9 @@ Never commit API keys. Keep them in a .Renviron file in this folder (already in 
 
 | Member | What I built | Portfolio project entry |
 |---|---|---|
-| [First Last] | [for example: the API pulls and the merge] | [https://USERNAME.github.io/portfolio/#...] |
-| [First Last] | [ ] | [ ] |
-| [First Last] | [ ] | [ ] |
+| Westin Walrath | [for example: the API pulls and the merge] | [https://USERNAME.github.io/portfolio/#...] |
+| Elizabeth Culbertson | [ ] | [ ] |
+| Zina Dupal | [ ] | [ ] |
 
 Each member adds this project to their own portfolio site, in their own words, with a link
 back to this repository and the dashboard, and updates the Skills section of their portfolio
@@ -39,9 +28,9 @@ and of their `business_intelligence` README with skills they used in this projec
 
 ## The Question
 
-[The research question or business problem, in one or two sentences.]
+Are older songs still popular among today's music listeners, and how does their popularity compare to newer releases? Our team plans to investigate whether songs released in previous decades continue to appear on modern music charts and whether their popularity varies across artists, genres, and countries.
 
-[Why it matters, and what makes it interesting or new compared with analyzing an existing dataset.]
+This question is interesting because music consumption is no longer limited to newly released songs. Streaming platforms allow listeners to rediscover older music, potentially giving songs a longer lifespan or renewed popularity years after their original release. By combining current music rankings with historical release information and listening statistics, we hope to identify patterns that would not be apparent from analyzing a single music dataset.
 
 ## Data Sources
 
@@ -50,9 +39,9 @@ LLM extraction from text).
 
 | Source | Link | Method | One row is | Code |
 |---|---|---|---|---|
-| [name] | [url] | [web scraping / API / LLM extraction] | [one listing on one date] | `markdowns/01_acquire.Rmd` |
-| [name] | [url] | [ ] | [ ] | [ ] |
-| [name] | [url] | [ ] | [ ] | [ ] |
+| Spotify Charts | https://charts.spotify.com/home | Web scraping | One song's ranking for a country and chart date | `markdowns/01_acquire.Rmd` |
+| MusicBrainz | https://musicbrainz.org/doc/MusicBrainz_API  | API | 	One recording or release record | [ ] |
+| Last.fm | https://www.last.fm/api  | API | One artist or track's listening statistics | [ ] |
 
 ## Pipeline
 
