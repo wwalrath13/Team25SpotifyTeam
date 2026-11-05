@@ -10,18 +10,272 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-## Source 1: [name] ([web scraping / API / LLM extraction])
+## Source 1: Articles on Older Songs (LLM Structured Extraction)
 
-What one row is: [ ]
+**Team member:** Culby
 
-## Source 2: [name]
+**Sources:** Articles discussing the resurgence of older songs, including material related to Guy Zapoleon's Radio Theory, Strauss–Howe Generational Theory, and Matt Bailey's Generational Music Cycle Framework.
 
-What one row is: [ ]
+**What one row is:** One claim or observation extracted from a specific article, including its source, publication date (if available), and supporting evidence.
 
-## Source 3: [name]
+**Purpose:** Explore possible explanations for why older songs become popular again, including nostalgia, generational preferences, and recurring music trends.
 
-What one row is: [ ]
+## Source 2: MusicBrainz (API)
+
+**Team member:** Zina
+
+**Source:** https://musicbrainz.org/doc/MusicBrainz_API
+
+**What one row is:** One recording returned by the MusicBrainz API, including its title, recording ID, and earliest reported release date. A separate release-group dataset contains information about albums and other releases.
+
+**Purpose:** Use MusicBrainz to identify when songs were originally released so our team can determine the age of songs appearing on Billboard and Spotify charts.
+
+### Load packages
+
+```{r}
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(readr)
+```
+
+### Step 1: Search for a song using the MusicBrainz API
+
+We will use Michael Jackson's "Billie Jean" as an example to test the API and retrieve recording information.
+
+```{r}
+# Search MusicBrainz for Billie Jean
+response <- GET(
+  "https://musicbrainz.org/ws/2/recording/",
+  query = list(
+    query = 'recording:"Billie Jean" AND artist:"Michael Jackson"',
+    fmt = "json",
+    limit = 25
+  ),
+  user_agent("ISA401-Team25/1.0 (contact: dupalz@miamioh.edu)")
+)
+
+# Check that the request worked
+stop_for_status(response)
+
+# Save the original API response
+recording_json <- content(
+  response,
+  "text",
+  encoding = "UTF-8"
+)
+
+# Convert JSON into an R list
+recording_data <- fromJSON(
+  recording_json,
+  simplifyVector = FALSE
+)
+```
+
+### Step 2: Extract recording information
+
+MusicBrainz may return multiple recording entries for the same song title because different performances, edits, mixes, or database entries can have separate recording identifiers. Reissues of the same recording do not necessarily create new recording identifiers.
+
+```{r}
+# Extract information from each recording
+song_dates <- lapply(
+  recording_data$recordings,
+  function(x) {
+    data.frame(
+      title = x$title,
+      recording_id = x$id,
+      first_release_date = if (is.null(x[["first-release-date"]])) {
+        NA_character_
+      } else {
+        x[["first-release-date"]]
+      }
+    )
+  }
+)
+
+# Combine results into one data frame
+song_dates <- bind_rows(song_dates)
+
+# Display the first few results
+head(song_dates)
+```
+
+### Step 3: Extract release years
+
+We will use the first four characters of the release date to identify the year and sort the recordings from oldest to newest.
+
+```{r}
+# Extract the year from the release date
+song_dates <- song_dates |>
+  mutate(
+    release_year = as.integer(
+      substr(first_release_date, 1, 4)
+    ),
+    release_year = if_else(
+      is.na(first_release_date) | first_release_date == "",
+      NA_integer_,
+      release_year
+    )
+  )
+
+# Sort by release year
+song_dates <- song_dates |>
+  arrange(release_year)
+
+# Display the results
+song_dates
+```
+
+**Observation:** In our initial MusicBrainz API test, the recording search returned 25 results for "Billie Jean," with release dates ranging from 1990 to 2024 among the nonmissing values. Four results had missing release dates.
+
+This illustrates an important limitation: the earliest date among a limited set of recording search results does not necessarily represent the song's original release year. Additional verification is needed before assigning an original release year to a song.
+
+### Step 4: Search for the original album
+
+To investigate the original release year, we will search MusicBrainz's release-group database for Michael Jackson's album *Thriller*.
+
+```{r}
+# Wait before making another MusicBrainz API request
+Sys.sleep(1.1)
+
+# Search MusicBrainz for Thriller
+response <- RETRY(
+  "GET",
+  "https://musicbrainz.org/ws/2/release-group/",
+  query = list(
+    query = 'releasegroup:"Thriller" AND artist:"Michael Jackson"',
+    fmt = "json",
+    limit = 10
+  ),
+  user_agent("ISA401-Team25/1.0 (contact: dupalz@miamioh.edu)")
+)
+
+# Check that the request worked
+stop_for_status(response)
+
+# Save the original API response
+album_json <- content(
+  response,
+  "text",
+  encoding = "UTF-8"
+)
+
+# Convert JSON into an R list
+album_data <- fromJSON(
+  album_json,
+  simplifyVector = FALSE
+)
+```
+
+### Step 5: Extract release-group information
+
+```{r}
+# Extract album information
+album_results <- lapply(
+  album_data[["release-groups"]],
+  function(x) {
+    data.frame(
+      title = x$title,
+      first_release_date = if (is.null(x[["first-release-date"]])) {
+        NA_character_
+      } else {
+        x[["first-release-date"]]
+      },
+      release_group_id = x$id
+    )
+  }
+)
+
+# Combine results into one data frame
+album_results <- bind_rows(album_results)
+
+# Extract release year
+album_results <- album_results |>
+  mutate(
+    release_year = as.integer(
+      substr(first_release_date, 1, 4)
+    )
+  )
+
+# Sort from oldest to newest
+album_results <- album_results |>
+  arrange(release_year)
+
+# Display results
+album_results
+```
+
+**Observation:** The MusicBrainz release-group search identified *Thriller* with a first release date of November 30, 1982. It also returned later editions and related releases.
+
+This demonstrates why our team needs to distinguish original releases from later versions when determining the age of older songs.
+
+The album search is a validation example; it does not automatically establish the original release year of every recording returned by the song search.
+
+### Step 6: Save raw data
+
+Save the results in the project's `data/raw` folder so they can be used in later cleaning and merging steps.
+
+```{r}
+# Create raw data folder if needed
+dir.create(
+  "../data/raw",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+# Save recording data as CSV
+write_csv(
+  song_dates,
+  "../data/raw/musicbrainz_recordings.csv"
+)
+
+# Save album data as CSV
+write_csv(
+  album_results,
+  "../data/raw/musicbrainz_album_results.csv"
+)
+
+# Save original recording API response
+writeLines(
+  recording_json,
+  "../data/raw/musicbrainz_recordings.json"
+)
+
+# Save original release-group API response
+writeLines(
+  album_json,
+  "../data/raw/musicbrainz_release_groups.json"
+)
+```
+
+### Source limitations
+
+- MusicBrainz can return multiple recordings with the same song title.
+- Some recordings may have missing release dates.
+- Reissues, remasters, and alternate recordings may have later dates than the original song.
+- Release-group information can help identify original albums, but the relationship between a song and its original release must be verified.
+- The current example uses one song and one album. The final dataset will need additional songs from Billboard or Spotify.
+
+### Next steps
+
+Once the team has collected song titles and artists from Billboard and Spotify, we will use MusicBrainz to look up their release information and calculate song age.
+
+The cleaned dataset can then be merged with the chart data to examine whether older songs are becoming more popular.
+
+## Source 3: Billboard Hot 100 (web scraping)
+
+**Team member:** Westin
+
+**Source:** https://www.billboard.com/charts/hot-100/1990-01-06/
+
+**What one row is:** One song appearing on the Billboard Hot 100 for a particular chart week, including its rank, title, and artist.
+
+**Purpose:** Collect historical chart information to examine whether older songs appear on popular music charts over time.
 
 ## Save the raw data
 
-Write each source to `../data/raw/`.
+Each team member should save their acquired data to
+`../data/raw/` as a separate file.
+
+The raw files will be used during the cleaning,
+merging, and validation stages of the project.
