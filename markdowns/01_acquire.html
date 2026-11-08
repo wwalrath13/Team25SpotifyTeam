@@ -460,6 +460,12 @@ original album</a></li>
 release-group information</a></li>
 <li><a href="#step-6-save-raw-data" id="toc-step-6-save-raw-data">Step
 6: Save raw data</a></li>
+<li><a href="#step-7-search-musicbrainz-for-multiple-songs" id="toc-step-7-search-musicbrainz-for-multiple-songs">Step 7: Search
+MusicBrainz for Multiple Songs</a></li>
+<li><a href="#step-8-retrieve-recording-information-for-each-song" id="toc-step-8-retrieve-recording-information-for-each-song">Step 8:
+Retrieve Recording Information for Each Song</a></li>
+<li><a href="#step-9-collect-and-save-multiple-song-results" id="toc-step-9-collect-and-save-multiple-song-results">Step 9: Collect
+and Save Multiple Song Results</a></li>
 <li><a href="#source-limitations" id="toc-source-limitations">Source
 limitations</a></li>
 <li><a href="#next-steps" id="toc-next-steps">Next steps</a></li>
@@ -473,7 +479,7 @@ data</a></li>
 
 <div id="source-1-articles-on-older-songs-llm-structured-extraction" class="section level2">
 <h2>Source 1: Articles on Older Songs (LLM Structured Extraction)</h2>
-<p><strong>Team member:</strong> Culby</p>
+<p><strong>Team member:</strong> Elizabeth</p>
 <p><strong>Sources:</strong> Articles discussing the resurgence of older
 songs, including material related to Guy Zapoleon’s Radio Theory,
 Strauss–Howe Generational Theory, and Matt Bailey’s Generational Music
@@ -562,12 +568,12 @@ song_dates &lt;- bind_rows(song_dates)
 # Display the first few results
 head(song_dates)</code></pre>
 <pre><code>##         title                         recording_id first_release_date
-## 1 Billie Jean 1e16139a-08eb-4ec0-9674-234edcc0463b               2001
-## 2 Billie Jean 2b262927-eccb-466a-8849-f221c8f8eb59         1992-11-21
-## 3 Billie Jean 109a2534-351b-4e80-b320-3ec04e2cf0c0               2002
-## 4 Billie Jean 13c603e1-fcf0-426f-8b89-3a1d02e396de               1990
-## 5 Billie Jean 98567252-2622-4e0f-b7bd-6ab93ef2f678               1993
-## 6 Billie Jean 0dc754dd-9d72-4055-a4da-879e06380172         2010-04-07</code></pre>
+## 1 Billie Jean d28ff8e5-0fc6-4c0f-9d38-0016b2369251               &lt;NA&gt;
+## 2 Billie Jean b98fe22e-2881-4f47-9250-c97033c380c7               &lt;NA&gt;
+## 3 Billie Jean 9bc996e5-58b1-4d99-8df2-6e42ac0aa291         2004-11-16
+## 4 Billie Jean d97ae038-3454-427a-b4d0-3c5f0e6a494b               1992
+## 5 Billie Jean f440cdb7-5068-434c-9beb-1458e9743f0b               2005
+## 6 Billie Jean 494c5a79-bc87-4a9f-8847-55122c7817b8               1985</code></pre>
 </div>
 <div id="step-3-extract-release-years" class="section level3">
 <h3>Step 3: Extract release years</h3>
@@ -593,54 +599,54 @@ song_dates &lt;- song_dates |&gt;
 # Display the results
 song_dates</code></pre>
 <pre><code>##          title                         recording_id first_release_date
-## 1  Billie Jean 13c603e1-fcf0-426f-8b89-3a1d02e396de               1990
-## 2  Billie Jean 39d45c6f-0554-416d-b359-901a0fb6bd9a               1990
-## 3  Billie Jean 2b262927-eccb-466a-8849-f221c8f8eb59         1992-11-21
-## 4  Billie Jean f0e820b2-2c13-4715-8619-b79c2acbb31f               1992
-## 5  Billie Jean a381c3d7-c323-49c2-8e3c-fdb94e360983               1992
-## 6  Billie Jean 98567252-2622-4e0f-b7bd-6ab93ef2f678               1993
-## 7  Billie Jean 75bdcdab-686d-46f0-8a99-a2496c8c136d               1993
-## 8  Billie Jean 416478f5-4dcb-462a-bd30-8492d97e5210               1994
-## 9  Billie Jean 1e16139a-08eb-4ec0-9674-234edcc0463b               2001
-## 10 Billie Jean 109a2534-351b-4e80-b320-3ec04e2cf0c0               2002
-## 11 Billie Jean 4730ae1d-6743-488d-8f03-f3bd93ae1129               2002
-## 12 Billie Jean 9b2f2ad5-06b2-4a1f-90ec-7ce35cc30f9d               2003
-## 13 Billie Jean 34eb68ab-7dbc-4e56-9a7c-85261270b8f7               2004
-## 14 Billie Jean 91c43ca8-6822-41b4-939d-6c87fa0cbcc9               2007
-## 15 Billie Jean 37fa1f35-7c30-4c53-8120-e715dd739766            2008-02
-## 16 Billie Jean 0dc754dd-9d72-4055-a4da-879e06380172         2010-04-07
-## 17 Billie Jean 7edb2779-0827-4b72-92e1-1acf088793dc               2013
-## 18 Billie Jean 47153dcc-1f50-42fd-9d43-4e1327c6d088               2017
-## 19 Billie Jean 1c02afe0-4fc9-40ea-a315-65d3f30f3005         2018-09-07
-## 20 Billie Jean 23bbe67b-62ec-4bdc-8915-1e1c6b28a25f         2022-11-17
-## 21 Billie Jean bde200db-e987-4280-8b57-8d535f41c77f               2024
-## 22 Billie Jean a7c00147-968c-403e-9b0c-efa1e7e4aa89               &lt;NA&gt;
-## 23 Billie Jean eed29cfc-957d-4fd0-8e1b-3b581ec20b52               &lt;NA&gt;
-## 24 Billie Jean fb5a39ec-1c92-41a2-b891-a99af2eb86eb               &lt;NA&gt;
-## 25 Billie Jean 82c9cf02-ea54-4c4f-a586-947c77febdaf               &lt;NA&gt;
+## 1  Billie Jean eca2877f-8423-4639-8fe2-fa8c0060aa2f               1982
+## 2  Billie Jean f980fc14-e29b-481d-ad3a-5ed9b4ab6340         1982-11-30
+## 3  Billie Jean 8bbc4f8b-e2e2-4264-9459-d4a0245ca871               1983
+## 4  Billie Jean 9797d377-b819-4ac0-808d-518a73fc9f63               1983
+## 5  Billie Jean 494c5a79-bc87-4a9f-8847-55122c7817b8               1985
+## 6  Billie Jean fceae521-bfa6-4956-b7ee-0f1837dd6bd0               1987
+## 7  Billie Jean d97ae038-3454-427a-b4d0-3c5f0e6a494b               1992
+## 8  Billie Jean c0ee7203-20b3-46b6-932e-c8b5a9ed68aa               1992
+## 9  Billie Jean 66595d4f-7ae7-4469-87b5-d24dbba45e03               1992
+## 10 Billie Jean 695036bc-60fb-4e66-841e-7d566f5787fa               1994
+## 11 Billie Jean b7e6a388-f341-4efa-b2b7-36f51c02ee55               1994
+## 12 Billie Jean 9bc996e5-58b1-4d99-8df2-6e42ac0aa291         2004-11-16
+## 13 Billie Jean f440cdb7-5068-434c-9beb-1458e9743f0b               2005
+## 14 Billie Jean 9695526e-7364-4c87-a6c1-c1afa0a13bcc               2007
+## 15 Billie Jean fa4f1675-0b7d-42e5-a3d9-7b8afa33cf1c               2008
+## 16 Billie Jean 65d856c8-94c8-48d5-ad10-8a0279f4c08d               2009
+## 17 Billie Jean 64c463e0-7769-4a1c-a539-05c810dbeffb         2012-09-18
+## 18 Billie Jean 68488b6f-f560-4e8f-bac6-05e73cdee1dc         2016-01-20
+## 19 Billie Jean 5352e8b8-950e-4ba4-b167-0579643104e5               2017
+## 20 Billie Jean 13bb6dac-007d-408f-a4ee-ac1ca9cefbdf         2022-11-18
+## 21 Billie Jean 8c051ba4-de5d-4276-a86b-a1fc028f40a2         2024-05-22
+## 22 Billie Jean 522b3763-1cfb-4b27-8894-cd3c21bce365         2026-01-30
+## 23 Billie Jean d28ff8e5-0fc6-4c0f-9d38-0016b2369251               &lt;NA&gt;
+## 24 Billie Jean b98fe22e-2881-4f47-9250-c97033c380c7               &lt;NA&gt;
+## 25 Billie Jean 0746ed57-db47-498c-a738-c80589bdf1c0               &lt;NA&gt;
 ##    release_year
-## 1          1990
-## 2          1990
-## 3          1992
-## 4          1992
-## 5          1992
-## 6          1993
-## 7          1993
-## 8          1994
-## 9          2001
-## 10         2002
-## 11         2002
-## 12         2003
-## 13         2004
+## 1          1982
+## 2          1982
+## 3          1983
+## 4          1983
+## 5          1985
+## 6          1987
+## 7          1992
+## 8          1992
+## 9          1992
+## 10         1994
+## 11         1994
+## 12         2004
+## 13         2005
 ## 14         2007
 ## 15         2008
-## 16         2010
-## 17         2013
-## 18         2017
-## 19         2018
+## 16         2009
+## 17         2012
+## 18         2016
+## 19         2017
 ## 20         2022
 ## 21         2024
-## 22           NA
+## 22         2026
 ## 23           NA
 ## 24           NA
 ## 25           NA</code></pre>
@@ -790,23 +796,167 @@ writeLines(
   &quot;../data/raw/musicbrainz_release_groups.json&quot;
 )</code></pre>
 </div>
+<div id="step-7-search-musicbrainz-for-multiple-songs" class="section level3">
+<h3>Step 7: Search MusicBrainz for Multiple Songs</h3>
+<pre class="r"><code># Create a list of songs to test
+test_songs &lt;- data.frame(
+  song_title = c(
+    &quot;Billie Jean&quot;,
+    &quot;Dreams&quot;,
+    &quot;Running Up That Hill&quot;,
+    &quot;Bohemian Rhapsody&quot;,
+    &quot;Everybody Wants to Rule the World&quot;
+  ),
+  artist = c(
+    &quot;Michael Jackson&quot;,
+    &quot;Fleetwood Mac&quot;,
+    &quot;Kate Bush&quot;,
+    &quot;Queen&quot;,
+    &quot;Tears for Fears&quot;
+  )
+)
+
+# Display the test songs
+test_songs</code></pre>
+<pre><code>##                          song_title          artist
+## 1                       Billie Jean Michael Jackson
+## 2                            Dreams   Fleetwood Mac
+## 3              Running Up That Hill       Kate Bush
+## 4                 Bohemian Rhapsody           Queen
+## 5 Everybody Wants to Rule the World Tears for Fears</code></pre>
+</div>
+<div id="step-8-retrieve-recording-information-for-each-song" class="section level3">
+<h3>Step 8: Retrieve Recording Information for Each Song</h3>
+<pre class="r"><code># Function to search MusicBrainz for a song and artist
+search_musicbrainz &lt;- function(song_title, artist) {
+
+  # Respect the MusicBrainz API rate limit
+  Sys.sleep(1.1)
+
+  # Build the search query
+  search_query &lt;- paste0(
+    &#39;recording:&quot;&#39;, song_title,
+    &#39;&quot; AND artist:&quot;&#39;, artist, &#39;&quot;&#39;
+  )
+
+  # Request recording information
+  response &lt;- RETRY(
+    &quot;GET&quot;,
+    &quot;https://musicbrainz.org/ws/2/recording/&quot;,
+    query = list(
+      query = search_query,
+      fmt = &quot;json&quot;,
+      limit = 25
+    ),
+    user_agent(&quot;ISA401-Team25/1.0 (contact: dupalz@miamioh.edu)&quot;),
+    times = 3
+  )
+
+  stop_for_status(response)
+
+  # Convert the response to an R list
+  recording_data &lt;- fromJSON(
+    content(response, &quot;text&quot;, encoding = &quot;UTF-8&quot;),
+    simplifyVector = FALSE
+  )
+
+  # Handle searches with no results
+  if (length(recording_data$recordings) == 0) {
+    return(data.frame())
+  }
+
+  # Extract recording information
+  results &lt;- lapply(
+    recording_data$recordings,
+    function(x) {
+      data.frame(
+        searched_title = song_title,
+        searched_artist = artist,
+        title = x$title,
+        recording_id = x$id,
+        first_release_date = if (
+          is.null(x[[&quot;first-release-date&quot;]])
+        ) {
+          NA_character_
+        } else {
+          x[[&quot;first-release-date&quot;]]
+        }
+      )
+    }
+  )
+
+  bind_rows(results)
+}</code></pre>
+</div>
+<div id="step-9-collect-and-save-multiple-song-results" class="section level3">
+<h3>Step 9: Collect and Save Multiple Song Results</h3>
+<pre class="r"><code># Search for each song in our test list
+all_song_results &lt;- lapply(
+  seq_len(nrow(test_songs)),
+  function(i) {
+    search_musicbrainz(
+      test_songs$song_title[i],
+      test_songs$artist[i]
+    )
+  }
+)
+
+# Combine the results
+all_song_results &lt;- bind_rows(all_song_results)
+
+# Extract release years
+all_song_results &lt;- all_song_results |&gt;
+  mutate(
+    release_year = as.integer(
+      substr(first_release_date, 1, 4)
+    )
+  ) |&gt;
+  arrange(searched_artist, searched_title, release_year)
+
+# Check how many results were returned
+all_song_results |&gt;
+  count(searched_title, searched_artist)</code></pre>
+<pre><code>##                      searched_title searched_artist  n
+## 1                       Billie Jean Michael Jackson 25
+## 2                 Bohemian Rhapsody           Queen 25
+## 3                            Dreams   Fleetwood Mac 25
+## 4 Everybody Wants to Rule the World Tears for Fears 25
+## 5              Running Up That Hill       Kate Bush 25</code></pre>
+<pre class="r"><code># Save the results
+write_csv(
+  all_song_results,
+  &quot;../data/raw/musicbrainz_multiple_songs.csv&quot;
+)</code></pre>
+</div>
 <div id="source-limitations" class="section level3">
 <h3>Source limitations</h3>
 <ul>
-<li>MusicBrainz can return multiple recordings with the same song
-title.</li>
+<li>MusicBrainz can return multiple recordings with the same song title
+because of alternate versions, live performances, remasters, or separate
+recording entries.</li>
 <li>Some recordings may have missing release dates.</li>
-<li>Reissues, remasters, and alternate recordings may have later dates
-than the original song.</li>
+<li>Reissues, remasters, and alternate recordings may have later release
+dates than the original song.</li>
+<li>The earliest release date returned by the API does not necessarily
+represent the song’s original release year.</li>
 <li>Release-group information can help identify original albums, but the
 relationship between a song and its original release must be
 verified.</li>
-<li>The current example uses one song and one album. The final dataset
-will need additional songs from Billboard or Spotify.</li>
+<li>The initial API test used “Billie Jean” by Michael Jackson and the
+album <em>Thri ller</em>. We subsequently expanded the recording search
+to five example songs, retrieving 125 candidate recordings in
+total.</li>
+<li>These results contain candidate recordings and release dates, not
+necessarily verified original song release years. Once Billboard or
+Spotify data is available, we will use its song titles and artists to
+guide additional MusicBrainz searches and verify original release years
+before calculating song ages.</li>
 </ul>
 </div>
 <div id="next-steps" class="section level3">
 <h3>Next steps</h3>
+<p>Verify the correct original recordings before calculating song
+ages.</p>
 <p>Once the team has collected song titles and artists from Billboard
 and Spotify, we will use MusicBrainz to look up their release
 information and calculate song age.</p>

@@ -1,0 +1,52 @@
+---
+title: "sample list"
+author: "zina dupal"
+date: "2026-11-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+test_songs <- data.frame(
+  song_title = c(
+    "Billie Jean",
+    "Dreams",
+    "Running Up That Hill",
+    "Bohemian Rhapsody",
+    "Everybody Wants to Rule the World"
+  ),
+  artist = c(
+    "Michael Jackson",
+    "Fleetwood Mac",
+    "Kate Bush",
+    "Queen",
+    "Tears for Fears"
+  )
+)
+
+test_songs
+```
+```{r}
+library(dplyr)
+library(readr)
+
+musicbrainz <- read_csv(
+  "../data/raw/musicbrainz_recordings.csv"
+)
+
+# Check the structure
+glimpse(musicbrainz)
+
+# Count missing release years
+sum(is.na(musicbrainz$release_year))
+
+# Check duplicate recording IDs
+sum(duplicated(musicbrainz$recording_id))
+
+# Summarize the data
+summary(musicbrainz$release_year)
+```
+

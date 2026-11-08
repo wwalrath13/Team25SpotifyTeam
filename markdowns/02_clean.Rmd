@@ -1,3 +1,4 @@
+
 ---
 title: "02 Clean and Transform"
 output:
@@ -14,10 +15,83 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 Read from `../data/raw/`.
 
+```{r}
+library(dplyr)
+library(readr)
+
+# Load MusicBrainz recording data for five test songs
+musicbrainz <- read_csv(
+  "../data/raw/musicbrainz_multiple_songs.csv"
+)
+
+# Examine the data
+glimpse(musicbrainz)
+
+# Count the number of candidate recordings for each song
+musicbrainz |>
+  count(searched_title, searched_artist)
+```
+
 ## Clean each source
 
 Types, formats, missing values, duplicates.
 
+### MusicBrainz
+
+```{r}
+# Count missing release years
+sum(is.na(musicbrainz$release_year))
+
+# Check for duplicate recording IDs
+sum(duplicated(musicbrainz$recording_id))
+
+# Summarize release years
+summary(musicbrainz$release_year)
+```
+
+```{r}
+# Clean recording information
+musicbrainz_clean <- musicbrainz |>
+  mutate(
+    searched_title = trimws(searched_title),
+    searched_artist = trimws(searched_artist),
+    title = trimws(title),
+    release_year = as.integer(release_year)
+  ) |>
+  distinct(searched_title, searched_artist,
+           recording_id, .keep_all = TRUE)
+
+# Examine cleaned data
+glimpse(musicbrainz_clean)
+
+# Check number of rows after cleaning
+nrow(musicbrainz_clean)
+```
+
+MusicBrainz may return multiple recording entries for the same song.
+These entries are retained when they have different recording IDs.
+Missing release years are preserved rather than replaced with
+unverified values.
+
+The release years in this dataset represent dates associated with
+candidate recordings, not necessarily the original release years
+of the songs.
+
 ## Save the cleaned data
 
 Write to `../data/processed/`.
+
+```{r}
+# Create processed data folder if needed
+dir.create(
+  "../data/processed",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+# Save cleaned MusicBrainz data for later steps
+write_csv(
+  musicbrainz_clean,
+  "../data/processed/musicbrainz_recordings_clean.csv"
+)
+```

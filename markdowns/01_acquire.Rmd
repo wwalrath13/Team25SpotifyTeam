@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 ## Source 1: Articles on Older Songs (LLM Structured Extraction)
 
-**Team member:** Culby
+**Team member:** Elizabeth
 
 **Sources:** Articles discussing the resurgence of older songs, including material related to Guy Zapoleon's Radio Theory, Strauss–Howe Generational Theory, and Matt Bailey's Generational Music Cycle Framework.
 
@@ -248,15 +248,148 @@ writeLines(
 )
 ```
 
+### Step 7: Search MusicBrainz for Multiple Songs
+
+```{r}
+# Create a list of songs to test
+test_songs <- data.frame(
+  song_title = c(
+    "Billie Jean",
+    "Dreams",
+    "Running Up That Hill",
+    "Bohemian Rhapsody",
+    "Everybody Wants to Rule the World"
+  ),
+  artist = c(
+    "Michael Jackson",
+    "Fleetwood Mac",
+    "Kate Bush",
+    "Queen",
+    "Tears for Fears"
+  )
+)
+
+# Display the test songs
+test_songs
+```
+
+### Step 8: Retrieve Recording Information for Each Song
+
+```{r}
+# Function to search MusicBrainz for a song and artist
+search_musicbrainz <- function(song_title, artist) {
+
+  # Respect the MusicBrainz API rate limit
+  Sys.sleep(1.1)
+
+  # Build the search query
+  search_query <- paste0(
+    'recording:"', song_title,
+    '" AND artist:"', artist, '"'
+  )
+
+  # Request recording information
+  response <- RETRY(
+    "GET",
+    "https://musicbrainz.org/ws/2/recording/",
+    query = list(
+      query = search_query,
+      fmt = "json",
+      limit = 25
+    ),
+    user_agent("ISA401-Team25/1.0 (contact: dupalz@miamioh.edu)"),
+    times = 3
+  )
+
+  stop_for_status(response)
+
+  # Convert the response to an R list
+  recording_data <- fromJSON(
+    content(response, "text", encoding = "UTF-8"),
+    simplifyVector = FALSE
+  )
+
+  # Handle searches with no results
+  if (length(recording_data$recordings) == 0) {
+    return(data.frame())
+  }
+
+  # Extract recording information
+  results <- lapply(
+    recording_data$recordings,
+    function(x) {
+      data.frame(
+        searched_title = song_title,
+        searched_artist = artist,
+        title = x$title,
+        recording_id = x$id,
+        first_release_date = if (
+          is.null(x[["first-release-date"]])
+        ) {
+          NA_character_
+        } else {
+          x[["first-release-date"]]
+        }
+      )
+    }
+  )
+
+  bind_rows(results)
+}
+```
+
+### Step 9: Collect and Save Multiple Song Results
+
+```{r}
+# Search for each song in our test list
+all_song_results <- lapply(
+  seq_len(nrow(test_songs)),
+  function(i) {
+    search_musicbrainz(
+      test_songs$song_title[i],
+      test_songs$artist[i]
+    )
+  }
+)
+
+# Combine the results
+all_song_results <- bind_rows(all_song_results)
+
+# Extract release years
+all_song_results <- all_song_results |>
+  mutate(
+    release_year = as.integer(
+      substr(first_release_date, 1, 4)
+    )
+  ) |>
+  arrange(searched_artist, searched_title, release_year)
+
+# Check how many results were returned
+all_song_results |>
+  count(searched_title, searched_artist)
+
+# Save the results
+write_csv(
+  all_song_results,
+  "../data/raw/musicbrainz_multiple_songs.csv"
+)
+```
+
+
 ### Source limitations
 
-- MusicBrainz can return multiple recordings with the same song title.
+- MusicBrainz can return multiple recordings with the same song title because of alternate versions, live performances, remasters, or separate recording entries.
 - Some recordings may have missing release dates.
-- Reissues, remasters, and alternate recordings may have later dates than the original song.
+- Reissues, remasters, and alternate recordings may have later release dates than the original song.
+- The earliest release date returned by the API does not necessarily represent the song's original release year.
 - Release-group information can help identify original albums, but the relationship between a song and its original release must be verified.
-- The current example uses one song and one album. The final dataset will need additional songs from Billboard or Spotify.
+- The initial API test used "Billie Jean" by Michael Jackson and the album *Thri
+ller*. We subsequently expanded the recording search to five example songs, retrieving 125 candidate recordings in total.
+- These results contain candidate recordings and release dates, not necessarily verified original song release years. Once Billboard or Spotify data is available, we will use its song titles and artists to guide additional MusicBrainz searches and verify original release years before calculating song ages.
 
 ### Next steps
+
+Verify the correct original recordings before calculating song ages. 
 
 Once the team has collected song titles and artists from Billboard and Spotify, we will use MusicBrainz to look up their release information and calculate song age.
 
