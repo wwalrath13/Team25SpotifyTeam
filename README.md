@@ -24,9 +24,9 @@ The final results will be presented through an interactive Tableau or Power BI d
 
 | Member | What I built / Responsibility | Portfolio project entry |
 |---|---|---|
-| Westin Walrath | Billboard Hot 100 web scraping and historical chart data acquisition | [To be added] |
-| Elizabeth Culbertson | LLM-based structured extraction of articles discussing older songs and their resurgence | [To be added] |
-| Zina Dupal | MusicBrainz API acquisition, recording data cleaning, and release-year investigation | [To be added] |
+| **Westin Walrath** | Billboard Hot 100 web scraping and historical chart data acquisition | [To be added] |
+| **Elizabeth Culbertson** | LLM-based structured extraction of articles discussing older songs and their resurgence | [To be added] |
+| **Zina Dupal** | MusicBrainz API acquisition, recording data cleaning, and release-year investigation | [To be added] |
 
 All team members will contribute to data integration, validation, dashboard development, and the final presentations.
 
