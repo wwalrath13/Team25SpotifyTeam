@@ -169,3 +169,23 @@ nrow(billboard_data)
 View(billboard_data)
 ```
 
+```{r}
+dir.create(
+  "data/processed",
+  recursive = TRUE,
+  showWarnings = FALSE
+)
+
+
+readr::write_csv(
+  billboard_data,
+  "data/processed/billboard_hot100_1990_2026.csv"
+)
+
+
+file.exists(
+  "data/processed/billboard_hot100_1990_2026.csv"
+)
+
+```
+
