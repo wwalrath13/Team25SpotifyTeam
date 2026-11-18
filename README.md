@@ -8,7 +8,7 @@ Our team is investigating whether older songs experience renewed popularity in p
 
 Our primary theoretical framework is Matt Bailey's Generational Music Theory. We will examine whether the timing of older songs' renewed chart success aligns with generational music-cycle patterns. We will also consider cultural influences, such as TikTok, television, movies, and other events that may contribute to a song's resurgence.
 
-Our analysis focuses on Billboard Hot 100 chart history from 1990 onward. We plan to use the broader chart data to identify patterns and select approximately 10–15 songs for more detailed case studies.
+Our analysis focuses on Billboard Hot 100 chart history from 1990 onward. We plan to examine 15 songs as detailed case studies. Our instructor indicated that this sample size should be sufficient and that our proposed research question is acceptable.
 
 The final results will be presented through an interactive Tableau or Power BI dashboard.
 
@@ -41,7 +41,7 @@ Our team aims to investigate whether songs originally released decades earlier e
 We will examine three related questions:
 
 1. **Resurgence timing:** How old are songs when they return to the Billboard Hot 100?
-2. **Resurgence performance:** How frequently do older songs return, and how well do they perform?
+2. **Resurgence performance:** How well do the selected older songs perform during their resurgence?
 3. **Resurgence explanations:** What documented cultural or media events are associated with renewed popularity?
 
 This question is interesting because digital streaming, social media, television, and movies have created additional opportunities for listeners to discover music from earlier decades.
@@ -54,7 +54,7 @@ Our primary framework is **Matt Bailey's Generational Music Theory**, which expl
 
 We will use Billboard chart histories to examine whether the observed timing of older songs' resurgences is consistent with the framework.
 
-Additional background frameworks include:
+Guy Zapoleon’s Music Cycle Theory serves as a secondary framework, while Strauss–Howe Generational Theory provides background only.
 
 - **Guy Zapoleon's Music Cycle Theory:** Examines recurring phases in contemporary popular music.
 - **Strauss–Howe Generational Theory:** Proposes broader recurring generational patterns in society and culture.
@@ -63,7 +63,7 @@ These frameworks provide context for interpreting our findings. Our analysis is 
 
 ### Operational Definitions
 
-For consistency, our team proposes the following definitions, subject to review as the project develops.
+The following definitions are proposed and have not yet been finalized by the team.
 
 | Term | Proposed definition |
 |---|---|
@@ -150,7 +150,7 @@ Cleaned and merged data are stored in `data/processed/`.
 - MusicBrainz API connection and initial recording searches completed.
 - Five-song MusicBrainz test dataset acquired.
 - MusicBrainz cleaning and initial data-quality checks completed.
-- Billboard historical chart acquisition in progress.
+- Westin successfully ran the historical Billboard acquisition Rmd locally; committing and pushing it to GitHub remain pending.
 - Article-based structured extraction in progress.
 - Full dataset merging, validation, and dashboard development pending.
 
@@ -283,6 +283,8 @@ The team will prepare two presentations:
 **In-class presentation (8–9 minutes):** Present the research question, dashboard, major findings, limitations, and conclusions.
 
 All team members will participate in the in-class presentation.
+
+The final in-class presentation will take place during the university-scheduled final-exam period, December 7–11, 2026; the exact presentation slot remains pending.
 
 ## References and Frameworks
 
