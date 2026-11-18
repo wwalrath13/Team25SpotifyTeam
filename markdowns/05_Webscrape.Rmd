@@ -1,0 +1,171 @@
+---
+
+title: "Billboard scrape post office"
+output: html_document
+date: "2026-11-11"
+---
+
+##load packages
+```{r}
+library(rvest)
+library(dplyr)
+library(readr)
+library(stringr)
+```
+
+##Generate Chart Dates
+```{r}
+chart_dates <- seq.Date(
+  from = as.Date("1990-01-06"),
+  to = as.Date("2026-11-07"),
+  by = "week"
+)
+
+chart_dates <- format(chart_dates, "%Y-%m-%d")
+
+length(chart_dates)
+```
+
+## Create Scrape
+```{r}
+scrape_billboard <- function(date) {
+
+# weekly chart URL
+  url <- paste0(
+    "https://www.billboard.com/charts/hot-100/",
+    date, "/"
+  )
+
+  page <- rvest::read_html(url)
+
+# Extract titles
+  titles <- page |>
+    rvest::html_elements(
+      "li.o-chart-results-list__item h3#title-of-a-story"
+    ) |>
+    rvest::html_text2()
+
+# Extract names
+  artists <- page |>
+    rvest::html_elements(
+      "li.o-chart-results-list__item h3#title-of-a-story + span"
+    ) |>
+    rvest::html_text2()
+
+# Confirm chart has 100 entries
+  if (length(titles) != 100 ||
+      length(artists) != 100) {
+    stop("Chart did not return 100 songs")
+  }
+
+# Create dataframe
+  data.frame(
+    chart_date = as.Date(date),
+    chart_position = 1:100,
+    song_title = titles,
+    artist_name = artists
+  )
+}
+```
+
+## Identify if weeks are missing + folders
+```{r}
+
+# Create folders
+dir.create("data/raw",
+           recursive = TRUE,
+           showWarnings = FALSE)
+
+dir.create("data/processed",
+           recursive = TRUE,
+           showWarnings = FALSE)
+
+# Identify charts not saved
+remaining_dates <- chart_dates[
+  !file.exists(
+    paste0(
+      "data/raw/billboard_",
+      chart_dates,
+      ".csv"
+    )
+  )
+]
+
+# Count remaining charts
+length(remaining_dates)
+
+# Display first five remaining dates
+head(remaining_dates, 5)
+```
+
+## The actual scrape DO NOT TOUCH
+```{r}
+
+# Scrape all remaining Billboard charts
+# Run only after access permission is established
+
+for (i in seq_along(remaining_dates)) {
+
+  date <- remaining_dates[i]
+
+  # Try to scrape this week
+  weekly_data <- tryCatch(
+    scrape_billboard(date),
+    error = function(e) {
+      message("Failed: ", date)
+      NULL
+    }
+  )
+
+  # Save successful charts
+  if (!is.null(weekly_data)) {
+
+    readr::write_csv(
+      weekly_data,
+      paste0(
+        "data/raw/billboard_",
+        date,
+        ".csv"
+      )
+    )
+
+    message("Saved: ", date)
+  }
+
+# Pause before the next website request
+  if (i < length(remaining_dates)) {
+    Sys.sleep(10)
+  }
+}
+```
+
+## Combine the charts
+```{r}
+# Find all saved weekly CSV files
+files <- list.files(
+  "data/raw",
+  pattern = "^billboard_[0-9]{4}-[0-9]{2}-[0-9]{2}\\.csv$",
+  full.names = TRUE
+)
+
+# Combine charts into one dataframe
+billboard_data <- files |>
+  lapply(readr::read_csv,
+         show_col_types = FALSE) |>
+  dplyr::bind_rows()
+
+# Sort the dataset
+billboard_data <- billboard_data |>
+  dplyr::arrange(chart_date, chart_position)
+
+# Save final dataset
+readr::write_csv(
+  billboard_data,
+  "data/processed/billboard_combined.csv"
+)
+
+# View results
+nrow(billboard_data)
+View(billboard_data)
+```
+
