@@ -1,4 +1,3 @@
-
 ---
 title: "02 Clean and Transform"
 output:
@@ -11,85 +10,77 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-## Read the raw data
+## Read the raw MusicBrainz results
 
-Read from `../data/raw/`.
+Run this notebook after Step 9 of `01_acquire.Rmd` completes and updates `musicbrainz_multiple_songs.csv`.
 
-```{r}
+```{r read-musicbrainz}
 library(dplyr)
 library(readr)
 
-# Load MusicBrainz recording data for five test songs
 musicbrainz <- read_csv(
-  "../data/raw/musicbrainz_multiple_songs.csv"
+  "../data/raw/musicbrainz_multiple_songs.csv",
+  col_types = cols(
+    searched_title = col_character(),
+    searched_artist = col_character(),
+    title = col_character(),
+    recording_id = col_character(),
+    first_release_date = col_character(),
+    release_year = col_integer()
+  )
 )
 
-# Examine the data
 glimpse(musicbrainz)
-
-# Count the number of candidate recordings for each song
-musicbrainz |>
-  count(searched_title, searched_artist)
 ```
 
-## Clean each source
+## Standardize text and check duplicates
 
-Types, formats, missing values, duplicates.
+Treat each combination of searched title, searched artist, and recording ID as one candidate match. Keep distinct recording IDs for the same search so they can be reviewed against the original release.
 
-### MusicBrainz
-
-```{r}
-# Count missing release years
-sum(is.na(musicbrainz$release_year))
-
-# Check for duplicate recording IDs
-sum(duplicated(musicbrainz$recording_id))
-
-# Summarize release years
-summary(musicbrainz$release_year)
-```
-
-```{r}
-# Clean recording information
-musicbrainz_clean <- musicbrainz |>
+```{r check-musicbrainz}
+musicbrainz_standardized <- musicbrainz |>
   mutate(
-    searched_title = trimws(searched_title),
-    searched_artist = trimws(searched_artist),
-    title = trimws(title),
-    release_year = as.integer(release_year)
-  ) |>
-  distinct(searched_title, searched_artist,
-           recording_id, .keep_all = TRUE)
+    across(
+      c(searched_title, searched_artist, title, recording_id),
+      trimws
+    )
+  )
 
-# Examine cleaned data
-glimpse(musicbrainz_clean)
+duplicate_matches <- musicbrainz_standardized |>
+  count(searched_title, searched_artist, recording_id, name = "rows") |>
+  filter(rows > 1)
 
-# Check number of rows after cleaning
-nrow(musicbrainz_clean)
+duplicate_matches
 ```
 
-MusicBrainz may return multiple recording entries for the same song.
-These entries are retained when they have different recording IDs.
-Missing release years are preserved rather than replaced with
-unverified values.
+## Clean and summarize the candidate recordings
 
-The release years in this dataset represent dates associated with
-candidate recordings, not necessarily the original release years
-of the songs.
+```{r clean-musicbrainz}
+musicbrainz_clean <- musicbrainz_standardized |>
+  distinct(searched_title, searched_artist, recording_id, .keep_all = TRUE)
+
+tibble(
+  raw_rows = nrow(musicbrainz),
+  cleaned_rows = nrow(musicbrainz_clean),
+  duplicate_rows_removed = nrow(musicbrainz) - nrow(musicbrainz_clean),
+  missing_release_years = sum(is.na(musicbrainz_clean$release_year))
+)
+
+musicbrainz_clean |>
+  count(searched_title, searched_artist, name = "candidate_recordings")
+```
+
+Release years are the dates reported for candidate recordings. Keep missing years as `NA` and verify the original recording and release date separately before calculating age at resurgence.
 
 ## Save the cleaned data
 
-Write to `../data/processed/`.
-
-```{r}
-# Create processed data folder if needed
+```{r save-musicbrainz}
 dir.create(
   "../data/processed",
   recursive = TRUE,
   showWarnings = FALSE
 )
 
-# Save cleaned MusicBrainz data for later steps
 write_csv(
   musicbrainz_clean,
   "../data/processed/musicbrainz_recordings_clean.csv"

@@ -7,19 +7,130 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
 ## Keys
 
-Which columns link the sources, and how you made them match.
+Match the pilot to Billboard using the song title and artist. Convert both
+fields to lowercase, trim whitespace, and remove surrounding quotation
+marks. Use the verified MusicBrainz recording ID and release date for the
+pilot because the original recording ID was outside the API search results.
+
+```{r read-inputs}
+library(dplyr)
+library(readr)
+
+song_key <- function(x) {
+  tolower(trimws(gsub('^[“"]|[”"]$', "", trimws(x))))
+}
+
+billboard <- read_csv(
+  "../data/processed/billboard_combined.csv",
+  col_types = cols(
+    chart_date = col_date(),
+    chart_position = col_integer(),
+    song_title = col_character(),
+    artist_name = col_character()
+  )
+)
+
+pilot <- tibble(
+  song_title = "Something in the Way",
+  artist_name = "Nirvana",
+  confirmed_week = as.Date("2022-03-26"),
+  original_release_date = as.Date("1991-09-24"),
+  recording_id = "3589823f-b494-4b2d-aab3-c2e500f81175",
+  article_url = paste0(
+    "https://www.billboard.com/music/chart-beat/",
+    "nirvana-something-in-the-way-batman-1235042829/"
+  )
+) |>
+  mutate(
+    title_key = song_key(song_title),
+    artist_key = song_key(artist_name)
+  )
+```
 
 ## Join
 
+Find the consecutive weekly chart run that contains the confirmed week.
+Compare the resulting window with the period described in the article.
+
+```{r join-billboard}
+billboard_keys <- billboard |>
+  transmute(
+    title_key = song_key(song_title),
+    artist_key = song_key(artist_name),
+    chart_date,
+    chart_position
+  )
+
+pilot_weeks <- pilot |>
+  inner_join(billboard_keys, by = c("title_key", "artist_key"))
+
+if (anyDuplicated(pilot_weeks$chart_date) > 0L) {
+  stop("The pilot has duplicate Billboard weeks. Check the chart rows.")
+}
+
+pilot_weeks <- pilot_weeks |>
+  arrange(chart_date) |>
+  mutate(
+    starts_new_run = is.na(lag(chart_date)) |
+      as.integer(chart_date - lag(chart_date)) != 7L,
+    run_id = cumsum(starts_new_run)
+  )
+
+anchor_run <- pilot_weeks |>
+  filter(chart_date == confirmed_week) |>
+  pull(run_id)
+
+if (length(anchor_run) != 1L) {
+  stop("The confirmed pilot week did not match exactly one Billboard row.")
+}
+
+resurgence_weeks <- pilot_weeks |>
+  filter(run_id == anchor_run)
+```
+
 ## Check the join
 
-Rows before and after each join, and the rows that did not match.
+Review the chart rows in the matched run. A missing chart week in the
+source data can make the window appear shorter, so verify any uncertain
+boundary before final selection.
 
-## Save the final dataset
+```{r check-join}
+tibble(
+  pilot_rows_before_join = nrow(pilot),
+  chart_rows_after_join = nrow(pilot_weeks),
+  chart_rows_in_resurgence = nrow(resurgence_weeks)
+)
 
-Write to `../data/processed/`.
+resurgence_weeks |>
+  select(chart_date, chart_position)
+```
+
+## Save the pilot dataset
+
+```{r save-pilot}
+pilot_summary <- resurgence_weeks |>
+  summarise(
+    song_title = first(song_title),
+    artist_name = first(artist_name),
+    recording_id = first(recording_id),
+    original_release_date = first(original_release_date),
+    article_url = first(article_url),
+    resurgence_start = min(chart_date),
+    resurgence_end = max(chart_date),
+    peak_rank = min(chart_position),
+    weeks_charted = n_distinct(chart_date),
+    age_at_resurgence_years = round(
+      as.numeric(resurgence_start - original_release_date) / 365.25,
+      1
+    )
+  )
+
+pilot_summary
+
+write_csv(pilot_summary, "../data/processed/resurgence_pilot.csv")
+```
