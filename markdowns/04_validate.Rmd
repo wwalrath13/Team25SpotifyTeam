@@ -7,15 +7,240 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(readr)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+## Read the inputs
+
+The working merge supplies the computed chart runs. The case review
+supplies the article evidence, reviewed run boundaries, and draft Bailey
+assessments. Match the two files by `case_id`.
+
+```{r read-inputs}
+merged <- read_csv(
+  "../data/processed/resurgence_pilot.csv",
+  col_types = cols(
+    .default = col_character(),
+    confirmed_week = col_date(),
+    original_release_date = col_date(),
+    original_release_year = col_integer(),
+    resurgence_start = col_date(),
+    resurgence_end = col_date(),
+    peak_rank = col_integer(),
+    weeks_charted = col_integer(),
+    age_at_resurgence_years = col_double()
+  )
+)
+
+review <- read_csv(
+  "../data/processed/resurgence_case_review.csv",
+  col_types = cols(
+    .default = col_character(),
+    reviewed_start = col_date(),
+    reviewed_end = col_date(),
+    reviewed_peak_rank = col_integer(),
+    reviewed_weeks = col_integer()
+  )
+)
+
+stop_for_problems(merged)
+stop_for_problems(review)
+
+blank <- function(x) {
+  is.na(x) | trimws(x) == ""
+}
+
+flag <- function(data, condition, description) {
+  data |>
+    filter({{ condition }}) |>
+    transmute(case_id, song_title, issue = .env$description)
+}
+
+duplicate_ids <- function(data) {
+  data |>
+    count(case_id) |>
+    filter(n > 1L) |>
+    select(case_id)
+}
+
+merged_duplicates <- duplicate_ids(merged)
+review_duplicates <- duplicate_ids(review)
+
+# Leave ambiguous IDs out of the join so the report can list them as issues.
+cases <- merged |>
+  filter(!blank(case_id)) |>
+  anti_join(merged_duplicates, by = "case_id") |>
+  select(-any_of(c("article_url", "reported_period", "documented_trigger"))) |>
+  left_join(
+    review |>
+      filter(!blank(case_id)) |>
+      anti_join(review_duplicates, by = "case_id") |>
+      select(-song_title),
+    by = "case_id",
+    relationship = "one-to-one"
+  )
 ```
 
 ## Validation rules
 
+Expect 15 cases and one row per case ID in each file. Each case needs an
+article URL and reported comeback period. A trigger may be blank when
+the article gives none.
+
+The confirmed week must fall within the consecutive chart run. Peak rank
+must be between 1 and 100, and the number of weeks must agree with the
+run dates. Compare the computed run with the reviewed dates, peak rank,
+and weeks charted.
+
+Check the 10-year cutoff using the release anniversary. If only a
+release year is available and the calendar-year difference is exactly
+10, flag the case for a more precise date.
+
+```{r apply-rules}
+cases <- cases |>
+  mutate(
+    release_year_for_check = coalesce(
+      as.integer(format(original_release_date, "%Y")),
+      original_release_year
+    ),
+    year_gap = as.integer(format(resurgence_start, "%Y")) -
+      release_year_for_check,
+    meets_cutoff = case_when(
+      year_gap > 10L ~ TRUE,
+      year_gap < 10L ~ FALSE,
+      year_gap == 10L & !is.na(original_release_date) ~
+        format(resurgence_start, "%m-%d") >=
+          format(original_release_date, "%m-%d"),
+      TRUE ~ NA
+    ),
+    expected_age = round(
+      as.numeric(resurgence_start - original_release_date) / 365.25,
+      1
+    )
+  )
+
+allowed_assessments <- c(
+  "supports", "partly supports", "contradicts", "insufficient evidence"
+)
+```
+
 ## Validation table
 
-The rows that break each rule.
+```{r validation-table}
+validation_issues <- bind_rows(
+  tibble(case_id = "dataset", song_title = NA_character_, rows = nrow(merged)) |>
+    filter(rows != 15L) |>
+    transmute(case_id, song_title, issue = paste("Expected 15 merged rows. Found", rows)),
+  flag(merged, blank(case_id), "Missing case ID in the working merge"),
+  flag(review, blank(case_id), "Missing case ID in the evidence review"),
+  flag(merged, case_id %in% merged_duplicates$case_id,
+       "Duplicate case ID in the working merge"),
+  flag(review, case_id %in% review_duplicates$case_id,
+       "Duplicate case ID in the evidence review"),
+  flag(merged, !blank(case_id) & !(case_id %in% review$case_id),
+       "Missing matching evidence review"),
+  flag(review, !blank(case_id) & !(case_id %in% merged$case_id),
+       "Review case absent from the working merge"),
+  flag(cases, blank(song_title) | blank(artist_name) | blank(recording_id),
+       "Missing song, artist, or recording ID"),
+  flag(cases, blank(article_url) | blank(reported_period),
+       "Missing article URL or reported comeback period"),
+  flag(cases, is.na(original_release_date) & is.na(original_release_year),
+       "Missing original release date and year"),
+  flag(cases, !is.na(original_release_date) & !is.na(original_release_year) &
+         as.integer(format(original_release_date, "%Y")) != original_release_year,
+       "Original release date and year disagree"),
+  flag(cases, is.na(confirmed_week) | is.na(resurgence_start) |
+         is.na(resurgence_end) | resurgence_end < resurgence_start |
+         confirmed_week < resurgence_start | confirmed_week > resurgence_end,
+       "Invalid chart dates or confirmed week outside the run"),
+  flag(cases, is.na(peak_rank) | peak_rank < 1L | peak_rank > 100L,
+       "Missing or invalid Hot 100 peak rank"),
+  flag(cases, is.na(weeks_charted) | weeks_charted < 1L |
+         as.integer(resurgence_end - resurgence_start) != 7L * (weeks_charted - 1L),
+       "Weeks charted disagree with the run dates"),
+  flag(cases, is.na(meets_cutoff), "10-year cutoff could not be confirmed"),
+  flag(cases, !meets_cutoff, "Below the 10-year cutoff"),
+  flag(cases, !is.na(expected_age) &
+         (is.na(age_at_resurgence_years) |
+            abs(age_at_resurgence_years - expected_age) > 1e-8),
+       "Age at resurgence disagrees with the release date and run start"),
+  flag(cases, !(boundary_status %in% "reviewed") |
+         is.na(reviewed_start) | is.na(reviewed_end) |
+         is.na(reviewed_peak_rank) | is.na(reviewed_weeks) |
+         resurgence_start != reviewed_start | resurgence_end != reviewed_end |
+         peak_rank != reviewed_peak_rank | weeks_charted != reviewed_weeks,
+       "Chart run needs review or differs from the evidence review"),
+  flag(cases, !(bailey_assessment %in% allowed_assessments) |
+         blank(bailey_prediction) | blank(bailey_rationale),
+       "Missing or invalid Bailey assessment")
+) |>
+  distinct() |>
+  arrange(case_id, issue)
+
+if (nrow(validation_issues) == 0L) {
+  cat("All", nrow(cases), "cases passed the checks in this report.")
+} else {
+  knitr::kable(validation_issues)
+}
+```
+
+## Case review
+
+Hot 100 ranks measure overall chart performance. The Bailey assessments
+also depend on what the article evidence says about the listeners who
+drove the comeback.
+
+```{r reviewed-cases}
+cases |>
+  select(
+    case_id, song_title, resurgence_start, resurgence_end,
+    peak_rank, weeks_charted, meets_cutoff, boundary_status, review_note
+  ) |>
+  knitr::kable()
+
+cases |>
+  select(
+    case_id, song_title, article_url, reported_period, documented_trigger,
+    bailey_prediction, bailey_assessment, bailey_rationale
+  ) |>
+  knitr::kable()
+```
 
 ## Descriptive summaries
 
-Summary statistics, data quality checks, and exploratory charts.
+```{r descriptive-summaries}
+cases |>
+  select(age_at_resurgence_years, peak_rank, weeks_charted) |>
+  summary()
+
+cases |>
+  mutate(documented_trigger = if_else(
+    blank(documented_trigger), "No trigger documented", documented_trigger
+  )) |>
+  count(documented_trigger, sort = TRUE) |>
+  knitr::kable()
+
+cases |>
+  count(bailey_assessment, sort = TRUE) |>
+  knitr::kable()
+```
+
+## Export the dashboard dataset
+
+```{r export-dashboard}
+stopifnot(
+  nrow(validation_issues) == 0L,
+  nrow(cases) == 15L,
+  anyDuplicated(cases$case_id) == 0L
+)
+
+readr::write_csv(
+  cases,
+  "../data/processed/resurgence_dashboard.csv",
+  na = ""
+)
+```
