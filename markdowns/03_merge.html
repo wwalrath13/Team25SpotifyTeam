@@ -442,26 +442,31 @@ display: none;
 
 <div id="TOC">
 <ul>
-<li><a href="#keys" id="toc-keys">Keys</a></li>
-<li><a href="#join" id="toc-join">Join</a></li>
-<li><a href="#check-the-join" id="toc-check-the-join">Check the
-join</a></li>
-<li><a href="#save-the-pilot-dataset" id="toc-save-the-pilot-dataset">Save the pilot dataset</a></li>
+<li><a href="#read-the-inputs" id="toc-read-the-inputs">Read the
+inputs</a></li>
+<li><a href="#match-cases-to-billboard" id="toc-match-cases-to-billboard">Match cases to Billboard</a></li>
+<li><a href="#check-the-matched-chart-weeks" id="toc-check-the-matched-chart-weeks">Check the matched chart
+weeks</a></li>
+<li><a href="#summarize-and-save-the-working-merge" id="toc-summarize-and-save-the-working-merge">Summarize and save the
+working merge</a></li>
 </ul>
 </div>
 
-<div id="keys" class="section level2">
-<h2>Keys</h2>
-<p>Match the pilot to Billboard using the song title and artist. Convert
-both fields to lowercase, trim whitespace, and remove surrounding
-quotation marks. Use the verified MusicBrainz recording ID and release
-date for the pilot because the original recording ID was outside the API
-search results.</p>
+<div id="read-the-inputs" class="section level2">
+<h2>Read the inputs</h2>
+<p>The cases CSV contains one row per selected resurgence. Each case has
+a unique ID and a confirmed Billboard chart week within the run
+described by the article. Enter dates as <code>YYYY-MM-DD</code>. If the
+source provides only the original release year, leave the release date
+blank. Leave the trigger blank when the article gives none.</p>
 <pre class="r"><code>library(dplyr)
 library(readr)
 
 song_key &lt;- function(x) {
-  tolower(trimws(gsub(&#39;^[“&quot;]|[”&quot;]$&#39;, &quot;&quot;, trimws(x))))
+  x &lt;- trimws(x)
+  x &lt;- gsub(&#39;^[“&quot;]|[”&quot;]$&#39;, &quot;&quot;, x)
+  x &lt;- gsub(&quot;[‘’]&quot;, &quot;&#39;&quot;, x)
+  tolower(trimws(x))
 }
 
 billboard &lt;- read_csv(
@@ -474,28 +479,49 @@ billboard &lt;- read_csv(
   )
 )
 
-pilot &lt;- tibble(
-  song_title = &quot;Something in the Way&quot;,
-  artist_name = &quot;Nirvana&quot;,
-  confirmed_week = as.Date(&quot;2022-03-26&quot;),
-  original_release_date = as.Date(&quot;1991-09-24&quot;),
-  recording_id = &quot;3589823f-b494-4b2d-aab3-c2e500f81175&quot;,
-  article_url = paste0(
-    &quot;https://www.billboard.com/music/chart-beat/&quot;,
-    &quot;nirvana-something-in-the-way-batman-1235042829/&quot;
+cases_path &lt;- &quot;../data/processed/verified_resurgence_cases.csv&quot;
+
+cases &lt;- read_csv(
+  cases_path,
+  col_types = cols(
+    .default = col_character(),
+    confirmed_week = col_date(),
+    original_release_date = col_date(),
+    original_release_year = col_integer()
   )
-) |&gt;
+)
+
+stop_for_problems(billboard)
+stop_for_problems(cases)
+
+if (nrow(cases) != 15L) {
+  stop(
+    &quot;Expected 15 cases, but read &quot;, nrow(cases), &quot; from &quot;,
+    normalizePath(cases_path),
+    call. = FALSE
+  )
+}
+
+stopifnot(
+  !anyNA(cases$case_id),
+  all(nzchar(trimws(cases$case_id))),
+  anyDuplicated(cases$case_id) == 0L,
+  !anyNA(cases$confirmed_week)
+)
+
+cases &lt;- cases |&gt;
   mutate(
     title_key = song_key(song_title),
     artist_key = song_key(artist_name)
   )</code></pre>
 </div>
-<div id="join" class="section level2">
-<h2>Join</h2>
-<p>Find the consecutive weekly chart run that contains the confirmed
-week. Compare the resulting window with the period described in the
-article.</p>
+<div id="match-cases-to-billboard" class="section level2">
+<h2>Match cases to Billboard</h2>
+<p>Join on normalized song title and artist. Start a new run when the
+gap between chart appearances differs from seven days. Keep the run
+containing each case’s confirmed chart week.</p>
 <pre class="r"><code>billboard_keys &lt;- billboard |&gt;
+  filter(!is.na(chart_date)) |&gt;
   transmute(
     title_key = song_key(song_title),
     artist_key = song_key(artist_name),
@@ -503,80 +529,159 @@ article.</p>
     chart_position
   )
 
-pilot_weeks &lt;- pilot |&gt;
-  inner_join(billboard_keys, by = c(&quot;title_key&quot;, &quot;artist_key&quot;))
+case_weeks &lt;- cases |&gt;
+  inner_join(
+    billboard_keys,
+    by = c(&quot;title_key&quot;, &quot;artist_key&quot;),
+    na_matches = &quot;never&quot;,
+    relationship = &quot;many-to-many&quot;
+  )
 
-if (anyDuplicated(pilot_weeks$chart_date) &gt; 0L) {
-  stop(&quot;The pilot has duplicate Billboard weeks. Check the chart rows.&quot;)
+duplicate_weeks &lt;- case_weeks |&gt;
+  count(case_id, chart_date) |&gt;
+  filter(n &gt; 1L)
+
+if (nrow(duplicate_weeks) &gt; 0L) {
+  print(duplicate_weeks)
+  stop(&quot;Resolve duplicate Billboard weeks for the listed cases.&quot;)
 }
 
-pilot_weeks &lt;- pilot_weeks |&gt;
-  arrange(chart_date) |&gt;
+case_weeks &lt;- case_weeks |&gt;
+  group_by(case_id) |&gt;
+  arrange(chart_date, .by_group = TRUE) |&gt;
   mutate(
     starts_new_run = is.na(lag(chart_date)) |
       as.integer(chart_date - lag(chart_date)) != 7L,
     run_id = cumsum(starts_new_run)
-  )
+  ) |&gt;
+  ungroup()
 
-anchor_run &lt;- pilot_weeks |&gt;
+anchor_runs &lt;- case_weeks |&gt;
   filter(chart_date == confirmed_week) |&gt;
-  pull(run_id)
+  select(case_id, run_id)
 
-if (length(anchor_run) != 1L) {
-  stop(&quot;The confirmed pilot week did not match exactly one Billboard row.&quot;)
+unmatched_cases &lt;- cases |&gt;
+  anti_join(anchor_runs, by = &quot;case_id&quot;) |&gt;
+  select(case_id, song_title, artist_name, confirmed_week)
+
+if (nrow(unmatched_cases) &gt; 0L) {
+  print(unmatched_cases)
+  stop(&quot;Verify the song, artist, and confirmed chart week for the listed cases.&quot;)
 }
 
-resurgence_weeks &lt;- pilot_weeks |&gt;
-  filter(run_id == anchor_run)</code></pre>
+resurgence_weeks &lt;- case_weeks |&gt;
+  semi_join(anchor_runs, by = c(&quot;case_id&quot;, &quot;run_id&quot;))</code></pre>
 </div>
-<div id="check-the-join" class="section level2">
-<h2>Check the join</h2>
-<p>Review the chart rows in the matched run. A missing chart week in the
-source data can make the window appear shorter, so verify any uncertain
-boundary before final selection.</p>
+<div id="check-the-matched-chart-weeks" class="section level2">
+<h2>Check the matched chart weeks</h2>
+<p>Compare the matched weeks with the article’s reported period and
+Westin’s tracker. Check any uncertain boundaries against the available
+chart data.</p>
 <pre class="r"><code>tibble(
-  pilot_rows_before_join = nrow(pilot),
-  chart_rows_after_join = nrow(pilot_weeks),
+  cases_before_join = nrow(cases),
+  chart_rows_after_join = nrow(case_weeks),
   chart_rows_in_resurgence = nrow(resurgence_weeks)
 )</code></pre>
 <pre><code>## # A tibble: 1 × 3
-##   pilot_rows_before_join chart_rows_after_join chart_rows_in_resurgence
-##                    &lt;int&gt;                 &lt;int&gt;                    &lt;int&gt;
-## 1                      1                     1                        1</code></pre>
+##   cases_before_join chart_rows_after_join chart_rows_in_resurgence
+##               &lt;int&gt;                 &lt;int&gt;                    &lt;int&gt;
+## 1                15                   239                       73</code></pre>
 <pre class="r"><code>resurgence_weeks |&gt;
-  select(chart_date, chart_position)</code></pre>
-<pre><code>## # A tibble: 1 × 2
-##   chart_date chart_position
-##   &lt;date&gt;              &lt;int&gt;
-## 1 2022-03-26             46</code></pre>
+  select(case_id, song_title, confirmed_week, chart_date, chart_position)</code></pre>
+<pre><code>## # A tibble: 73 × 5
+##    case_id song_title                   confirmed_week chart_date chart_position
+##    &lt;chr&gt;   &lt;chr&gt;                        &lt;date&gt;         &lt;date&gt;              &lt;int&gt;
+##  1 case_01 Lover, You Should’ve Come O… 2026-01-31     2026-01-31             97
+##  2 case_01 Lover, You Should’ve Come O… 2026-01-31     2026-02-07             84
+##  3 case_02 Let Down                     2025-08-30     2025-08-30             91
+##  4 case_02 Let Down                     2025-08-30     2025-09-06             93
+##  5 case_02 Let Down                     2025-08-30     2025-09-13             94
+##  6 case_02 Let Down                     2025-08-30     2025-09-20             95
+##  7 case_02 Let Down                     2025-08-30     2025-09-27            100
+##  8 case_03 Purple Rain                  2026-01-24     2026-01-17             27
+##  9 case_03 Purple Rain                  2026-01-24     2026-01-24             30
+## 10 case_03 Purple Rain                  2026-01-24     2026-01-31             38
+## # ℹ 63 more rows</code></pre>
 </div>
-<div id="save-the-pilot-dataset" class="section level2">
-<h2>Save the pilot dataset</h2>
-<pre class="r"><code>pilot_summary &lt;- resurgence_weeks |&gt;
+<div id="summarize-and-save-the-working-merge" class="section level2">
+<h2>Summarize and save the working merge</h2>
+<p>Peak rank is the lowest numerical rank in the matched run. Weeks
+charted counts distinct chart dates. Age is measured from the original
+release date to the start of the run and rounded to one decimal. Age
+remains missing when only the release year is available. Check the
+10-year cutoff separately using the verified release information and the
+run start.</p>
+<pre class="r"><code>run_summary &lt;- resurgence_weeks |&gt;
+  group_by(case_id) |&gt;
   summarise(
-    song_title = first(song_title),
-    artist_name = first(artist_name),
-    recording_id = first(recording_id),
-    original_release_date = first(original_release_date),
-    article_url = first(article_url),
     resurgence_start = min(chart_date),
     resurgence_end = max(chart_date),
-    peak_rank = min(chart_position),
+    peak_rank = if (all(is.na(chart_position))) {
+      NA_integer_
+    } else {
+      min(chart_position, na.rm = TRUE)
+    },
     weeks_charted = n_distinct(chart_date),
+    .groups = &quot;drop&quot;
+  )
+
+case_summary &lt;- cases |&gt;
+  select(-title_key, -artist_key) |&gt;
+  left_join(run_summary, by = &quot;case_id&quot;, relationship = &quot;one-to-one&quot;) |&gt;
+  mutate(
     age_at_resurgence_years = round(
       as.numeric(resurgence_start - original_release_date) / 365.25,
       1
     )
   )
 
-pilot_summary</code></pre>
-<pre><code>## # A tibble: 1 × 10
-##   song_title          artist_name recording_id original_release_date article_url
-##   &lt;chr&gt;               &lt;chr&gt;       &lt;chr&gt;        &lt;date&gt;                &lt;chr&gt;      
-## 1 Something in the W… Nirvana     3589823f-b4… 1991-09-24            https://ww…
-## # ℹ 5 more variables: resurgence_start &lt;date&gt;, resurgence_end &lt;date&gt;,
-## #   peak_rank &lt;int&gt;, weeks_charted &lt;int&gt;, age_at_resurgence_years &lt;dbl&gt;</code></pre>
-<pre class="r"><code>write_csv(pilot_summary, &quot;../data/processed/resurgence_pilot.csv&quot;)</code></pre>
+stopifnot(
+  nrow(case_summary) == nrow(cases),
+  !anyNA(case_summary$resurgence_start)
+)
+
+case_summary |&gt;
+  select(
+    case_id, resurgence_start, resurgence_end,
+    peak_rank, weeks_charted, age_at_resurgence_years
+  ) |&gt;
+  print(width = Inf)</code></pre>
+<pre><code>## # A tibble: 15 × 6
+##    case_id resurgence_start resurgence_end peak_rank weeks_charted
+##    &lt;chr&gt;   &lt;date&gt;           &lt;date&gt;             &lt;int&gt;         &lt;int&gt;
+##  1 case_01 2026-01-31       2026-02-07            84             2
+##  2 case_02 2025-08-30       2025-09-27            91             5
+##  3 case_03 2026-01-17       2026-02-07            27             4
+##  4 case_04 2020-10-17       2020-11-07            12             4
+##  5 case_05 2026-01-17       2026-06-20            35            23
+##  6 case_06 2022-06-11       2022-10-22             3            20
+##  7 case_07 2024-08-17       2024-08-17            45             1
+##  8 case_08 2023-02-25       2023-02-25            44             1
+##  9 case_09 2022-03-26       2022-03-26            46             1
+## 10 case_10 2018-11-17       2018-12-01            33             3
+## 11 case_11 2025-08-02       2025-08-09            48             2
+## 12 case_12 2021-04-24       2021-04-24            16             1
+## 13 case_13 2017-08-12       2017-08-12            34             1
+## 14 case_14 2016-05-07       2016-05-14            27             2
+## 15 case_15 2012-02-25       2012-03-10             3             3
+##    age_at_resurgence_years
+##                      &lt;dbl&gt;
+##  1                    31.4
+##  2                    28.3
+##  3                    41.6
+##  4                    43.6
+##  5                    10.6
+##  6                    36.8
+##  7                    24.6
+##  8                    10.4
+##  9                    30.5
+## 10                    43  
+## 11                    33.7
+## 12                    23  
+## 13                    13.9
+## 14                    33.6
+## 15                    19.3</code></pre>
+<pre class="r"><code>write_csv(case_summary, &quot;../data/processed/resurgence_pilot.csv&quot;)</code></pre>
 </div>
 
 

@@ -10,19 +10,23 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
-## Keys
+## Read the inputs
 
-Match the pilot to Billboard using the song title and artist. Convert both
-fields to lowercase, trim whitespace, and remove surrounding quotation
-marks. Use the verified MusicBrainz recording ID and release date for the
-pilot because the original recording ID was outside the API search results.
+The cases CSV contains one row per selected resurgence. Each case has a
+unique ID and a confirmed Billboard chart week within the run described
+by the article. Enter dates as `YYYY-MM-DD`. If the source provides only
+the original release year, leave the release date blank. Leave the trigger
+blank when the article gives none.
 
 ```{r read-inputs}
 library(dplyr)
 library(readr)
 
 song_key <- function(x) {
-  tolower(trimws(gsub('^[“"]|[”"]$', "", trimws(x))))
+  x <- trimws(x)
+  x <- gsub('^[“"]|[”"]$', "", x)
+  x <- gsub("[‘’]", "'", x)
+  tolower(trimws(x))
 }
 
 billboard <- read_csv(
@@ -35,30 +39,52 @@ billboard <- read_csv(
   )
 )
 
-pilot <- tibble(
-  song_title = "Something in the Way",
-  artist_name = "Nirvana",
-  confirmed_week = as.Date("2022-03-26"),
-  original_release_date = as.Date("1991-09-24"),
-  recording_id = "3589823f-b494-4b2d-aab3-c2e500f81175",
-  article_url = paste0(
-    "https://www.billboard.com/music/chart-beat/",
-    "nirvana-something-in-the-way-batman-1235042829/"
+cases_path <- "../data/processed/verified_resurgence_cases.csv"
+
+cases <- read_csv(
+  cases_path,
+  col_types = cols(
+    .default = col_character(),
+    confirmed_week = col_date(),
+    original_release_date = col_date(),
+    original_release_year = col_integer()
   )
-) |>
+)
+
+stop_for_problems(billboard)
+stop_for_problems(cases)
+
+if (nrow(cases) != 15L) {
+  stop(
+    "Expected 15 cases, but read ", nrow(cases), " from ",
+    normalizePath(cases_path),
+    call. = FALSE
+  )
+}
+
+stopifnot(
+  !anyNA(cases$case_id),
+  all(nzchar(trimws(cases$case_id))),
+  anyDuplicated(cases$case_id) == 0L,
+  !anyNA(cases$confirmed_week)
+)
+
+cases <- cases |>
   mutate(
     title_key = song_key(song_title),
     artist_key = song_key(artist_name)
   )
 ```
 
-## Join
+## Match cases to Billboard
 
-Find the consecutive weekly chart run that contains the confirmed week.
-Compare the resulting window with the period described in the article.
+Join on normalized song title and artist. Start a new run when the gap
+between chart appearances differs from seven days. Keep the run containing
+each case’s confirmed chart week.
 
 ```{r join-billboard}
 billboard_keys <- billboard |>
+  filter(!is.na(chart_date)) |>
   transmute(
     title_key = song_key(song_title),
     artist_key = song_key(artist_name),
@@ -66,71 +92,110 @@ billboard_keys <- billboard |>
     chart_position
   )
 
-pilot_weeks <- pilot |>
-  inner_join(billboard_keys, by = c("title_key", "artist_key"))
+case_weeks <- cases |>
+  inner_join(
+    billboard_keys,
+    by = c("title_key", "artist_key"),
+    na_matches = "never",
+    relationship = "many-to-many"
+  )
 
-if (anyDuplicated(pilot_weeks$chart_date) > 0L) {
-  stop("The pilot has duplicate Billboard weeks. Check the chart rows.")
+duplicate_weeks <- case_weeks |>
+  count(case_id, chart_date) |>
+  filter(n > 1L)
+
+if (nrow(duplicate_weeks) > 0L) {
+  print(duplicate_weeks)
+  stop("Resolve duplicate Billboard weeks for the listed cases.")
 }
 
-pilot_weeks <- pilot_weeks |>
-  arrange(chart_date) |>
+case_weeks <- case_weeks |>
+  group_by(case_id) |>
+  arrange(chart_date, .by_group = TRUE) |>
   mutate(
     starts_new_run = is.na(lag(chart_date)) |
       as.integer(chart_date - lag(chart_date)) != 7L,
     run_id = cumsum(starts_new_run)
-  )
+  ) |>
+  ungroup()
 
-anchor_run <- pilot_weeks |>
+anchor_runs <- case_weeks |>
   filter(chart_date == confirmed_week) |>
-  pull(run_id)
+  select(case_id, run_id)
 
-if (length(anchor_run) != 1L) {
-  stop("The confirmed pilot week did not match exactly one Billboard row.")
+unmatched_cases <- cases |>
+  anti_join(anchor_runs, by = "case_id") |>
+  select(case_id, song_title, artist_name, confirmed_week)
+
+if (nrow(unmatched_cases) > 0L) {
+  print(unmatched_cases)
+  stop("Verify the song, artist, and confirmed chart week for the listed cases.")
 }
 
-resurgence_weeks <- pilot_weeks |>
-  filter(run_id == anchor_run)
+resurgence_weeks <- case_weeks |>
+  semi_join(anchor_runs, by = c("case_id", "run_id"))
 ```
 
-## Check the join
+## Check the matched chart weeks
 
-Review the chart rows in the matched run. A missing chart week in the
-source data can make the window appear shorter, so verify any uncertain
-boundary before final selection.
+Compare the matched weeks with the article’s reported period and Westin’s
+tracker. Check any uncertain boundaries against the available chart data.
 
 ```{r check-join}
 tibble(
-  pilot_rows_before_join = nrow(pilot),
-  chart_rows_after_join = nrow(pilot_weeks),
+  cases_before_join = nrow(cases),
+  chart_rows_after_join = nrow(case_weeks),
   chart_rows_in_resurgence = nrow(resurgence_weeks)
 )
 
 resurgence_weeks |>
-  select(chart_date, chart_position)
+  select(case_id, song_title, confirmed_week, chart_date, chart_position)
 ```
 
-## Save the pilot dataset
+## Summarize and save the working merge
 
-```{r save-pilot}
-pilot_summary <- resurgence_weeks |>
+Peak rank is the lowest numerical rank in the matched run. Weeks charted
+counts distinct chart dates. Age is measured from the original release date
+to the start of the run and rounded to one decimal. Age remains missing
+when only the release year is available. Check the 10-year cutoff
+separately using the verified release information and the run start.
+
+```{r save-working-merge}
+run_summary <- resurgence_weeks |>
+  group_by(case_id) |>
   summarise(
-    song_title = first(song_title),
-    artist_name = first(artist_name),
-    recording_id = first(recording_id),
-    original_release_date = first(original_release_date),
-    article_url = first(article_url),
     resurgence_start = min(chart_date),
     resurgence_end = max(chart_date),
-    peak_rank = min(chart_position),
+    peak_rank = if (all(is.na(chart_position))) {
+      NA_integer_
+    } else {
+      min(chart_position, na.rm = TRUE)
+    },
     weeks_charted = n_distinct(chart_date),
+    .groups = "drop"
+  )
+
+case_summary <- cases |>
+  select(-title_key, -artist_key) |>
+  left_join(run_summary, by = "case_id", relationship = "one-to-one") |>
+  mutate(
     age_at_resurgence_years = round(
       as.numeric(resurgence_start - original_release_date) / 365.25,
       1
     )
   )
 
-pilot_summary
+stopifnot(
+  nrow(case_summary) == nrow(cases),
+  !anyNA(case_summary$resurgence_start)
+)
 
-write_csv(pilot_summary, "../data/processed/resurgence_pilot.csv")
+case_summary |>
+  select(
+    case_id, resurgence_start, resurgence_end,
+    peak_rank, weeks_charted, age_at_resurgence_years
+  ) |>
+  print(width = Inf)
+
+write_csv(case_summary, "../data/processed/resurgence_pilot.csv")
 ```
